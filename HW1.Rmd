@@ -1,0 +1,426 @@
+---
+title: "HW1"
+author: "Mengting Wang"
+date: "2022/2/6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+Task 1 Medal Counts over Time
+```{r}
+athletes_and_events<-read.csv("E:\\2021秋招\\BaiduNetdiskWorkspace\\哥大qmss\\DV\\assignment-1---winter-olympics-mmmelowang\\data\\athletes_and_events.csv")
+gdp_pop<-read.csv("E:\\2021秋招\\BaiduNetdiskWorkspace\\哥大qmss\\DV\\assignment-1---winter-olympics-mmmelowang\\data\\gdp_pop.csv")
+noc_regions<-read.csv("E:\\2021秋招\\BaiduNetdiskWorkspace\\哥大qmss\\DV\\assignment-1---winter-olympics-mmmelowang\\data\\noc_regions.csv")
+```
+
+#combine 3 datasets using merge:
+```{r}
+merge_data1<-merge(athletes_and_events,gdp_pop,by="NOC",all=TRUE)
+merge_data<-merge(merge_data1,noc_regions,by="NOC")
+```
+
+Summary of how many winter games each country competed in:
+Adjust the number of winter games each country participated in (top 30 countries): AUS,GER,RUS
+Notes that the obsolete country of AUS was ANZ(Australasia),but ANZ didn't participated in any winter games
+###adjust for GER(Germany):GER used to be named as SAA,EUA,GDR AND FRG.And URS used to be named as RU1,URS AND EUN.
+```{r}
+merge_data2<-merge_data
+merge_data2[(merge_data2$NOC=="GDR"),1]="GER"
+merge_data2[(merge_data2$NOC=="FRG"),1]="GER"
+merge_data2[(merge_data2$NOC=="URS"),1]="RUS"
+merge_data2[(merge_data2$NOC=="EUN"),1]="RUS"
+```
+
+Summary of how many winter games each country competed in:
+```{r}
+games <- merge_data2 %>%
+  select(Season,Games,Country,NOC)%>%
+  filter(Season=="Winter")%>%
+  unique()%>%
+  group_by(NOC)%>%
+  summarise(count=n())%>%
+  arrange(desc(count))
+```
+
+We can see that United States participated 22 winter games.
+Gender of medal winner:
+
+```{r}
+gender <- merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  select(Sex,NOC,Season,Year,Games,Event,Medal)%>%
+  filter(!is.na(NOC))%>%
+  unique()%>%
+  group_by(Sex)%>%
+  summarise(medal.count = n())%>%
+  ungroup()  
+
+library(ggplot2)
+newlegend <- paste(gender$Sex, " (", round(gender$medal.count/sum(gender$medal.count)* 100, 2), "%)", sep = "")  
+ggplot(gender, aes(x = "", y = medal.count, fill = Sex)) + 
+  geom_bar(stat = "identity") +
+  coord_polar(theta = "y") + 
+  geom_bar(stat = "identity", width = 1) + 
+  theme(panel.grid = element_blank(), 
+        axis.text = element_blank(), 
+        axis.title = element_blank(), 
+        axis.ticks = element_blank()) +
+  guides(fill = guide_legend(title = "Sex"))+
+  scale_fill_discrete(breaks = gender$Sex, labels = newlegend) 
+```
+
+Here we can say that male accounts for 71.34% of medal winner, while female only accounts of 28.66% of medal winner.
+
+
+Summary of how many medals of each type the country won:
+I Wrangled the data so that team events are counted as a single medal:
+```{r}
+medal_type<-merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  filter(Season=="Winter") %>%
+  select(Country,NOC,Season,Year,Games,Event,Medal)%>%
+  filter(!is.na(Country))%>%
+  unique()%>%
+  group_by(Medal,NOC)%>%
+  summarise(medal.count = n())%>%
+  arrange(desc(medal.count))%>%
+  ungroup()
+medal_type
+```
+
+visual comparison of medal count by country:
+```{r}
+top10 <- merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  select(Country,NOC,Season,Year,Games,Event,Medal)%>%
+  filter(!is.na(NOC))%>%
+  filter(Season=="Winter") %>%
+  unique()%>%
+  group_by(NOC)%>%
+  summarise(medal.count = n())%>%
+  arrange(desc(medal.count))%>%
+  head(10)%>%
+  ungroup()
+
+  ggplot(top10, aes(x = reorder(NOC,-medal.count), y=medal.count,fill=NOC)) + 
+  geom_bar(colour="black",stat="identity") +
+  xlab("NOC") +   
+  ylab("Count of medals") +
+  ggtitle("Total count of medal by NOC")+
+  guides(fill = guide_legend(title ="NOC"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5)) 
+
+```
+
+(i) one visualization showing an over time comparison :
+```{r}
+top5_medal <- merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  select(NOC,Season,Year,Games,Event,Medal)%>%
+  filter(Season=="Winter") %>%
+  filter(!is.na(NOC))%>%
+  unique()%>%
+  group_by(NOC)%>%
+  summarise(medal.count = n())%>%
+  arrange(desc(medal.count))%>%
+  head(5)%>%
+  ungroup()
+
+top5.year <- merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  select(NOC,Season,Year,Games,Event,Medal)%>%
+  filter(!is.na(NOC))%>%
+  filter(Season=="Winter") %>%
+  filter(NOC %in% top5_medal$NOC)%>%
+  unique()%>%
+  group_by(NOC,Year)%>%
+  summarise(medal.count = n())
+
+  ggplot(top5.year,aes(x=Year, y=medal.count,color=NOC)) + 
+  geom_line(size=0.1)+
+  theme_classic()+
+  theme(legend.position = "bottom" )+
+  labs(color = "NOC")+
+  ggtitle("Top 5 country's medals by year")+
+  xlab("Year")+
+  ylab("Count of medals")+
+  theme(axis.title.x=element_text(vjust=2, size=15,face = "bold"))+
+  theme(axis.title.y=element_text(vjust=2, size=15,face = "bold"))
+```
+Note: Here I only select top 5 countries and show an over time comparison of medals each country had. I think it would be appropriate to show only the top 5 countries in case of overlapping or blurred lines in the chart.
+
+(ii) one visualization in which a total medal count (across all Winter Olympics) is used:
+
+```{r}
+top10 <- merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  select(NOC,Season,Year,Games,Event,Medal)%>%
+  filter(Season=="Winter") %>%
+  filter(!is.na(NOC))%>%
+  filter(NOC %in% top10$NOC)%>%
+  unique()%>%
+  group_by(NOC,Medal)%>%
+  summarise(medal.count = n())%>%
+  ungroup()  
+  
+ggplot(top10,aes(NOC,weight=medal.count,fill=Medal))+
+  geom_bar(position="stack")+
+  xlab("NOC") +   
+  ylab("Count of medals") +
+  ggtitle("Total medal count across all winter Olympics")+
+  guides(fill = guide_legend(title ="NOC"))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.5, vjust = 0.5))
+```
+I would recommend the visualization in which a total medal count (across all Winter Olympics), because it's pretty clear that the total number of medals top 10 countries had won. And it's also easy to get the information from the stack bar diagram that how many medals of each type that top 10 countries had won.
+
+Task2 Medal Counts adjusted by Population, GDP
+
+I add up the number of medals of different types and here is the unadjusted ranking:
+```{r}
+unadjusted <- merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  select(NOC,Season,Games,Event,Medal,GDP.per.Capita,Population)%>%
+  filter(Season=="Winter") %>%
+  filter(!is.na(NOC))%>%
+  unique()%>%
+  group_by(NOC)%>%
+  summarise(medal.count = n())%>%
+  arrange(desc(medal.count))
+unadjusted
+```
+(a)Adjusted by GDP per capita; (b)by population
+```{r}
+adjusted<-merge(unadjusted,gdp_pop,by="NOC")
+adjusted["adj_GDP"]<- adjusted["medal.count"]/adjusted["GDP.per.Capita"]
+adjusted["adj_pop"]<- adjusted["medal.count"]/adjusted["Population"]
+
+unadjusted_ranking<- unadjusted %>%
+  arrange(desc(medal.count),NOC) %>%
+  mutate(unadj_ranking= row_number()) %>%
+  as.data.frame()
+
+adjusted_ranking<-adjusted %>%
+  arrange(desc(adj_GDP),NOC) %>%
+  mutate(gdp_ranking=row_number()) %>%
+  as.data.frame()
+
+adjusted_ranking2<-adjusted_ranking %>%
+  arrange(desc(adj_pop),NOC) %>%
+  mutate(pop_ranking=row_number()) %>%
+  as.data.frame()
+  
+ranking<-merge(unadjusted_ranking,adjusted_ranking2,by="NOC")
+```
+Select some countries and regions I'm interested in:
+```{r}
+differ<- ranking %>% 
+  select("NOC","unadj_ranking","gdp_ranking","pop_ranking") %>%
+  filter(NOC %in% c("KOR","USA","GER","RUS","NOR","AUT","CHN","LIE","SUI","SWE","FIN"))
+
+write.csv(differ,"E:\\2021秋招\\BaiduNetdiskWorkspace\\哥大qmss\\DV\\assignment-1---winter-olympics-mmmelowang\\data\\differ.csv", row.names = FALSE)
+differ2<-read.csv("E:\\2021秋招\\BaiduNetdiskWorkspace\\哥大qmss\\DV\\assignment-1---winter-olympics-mmmelowang\\data\\differ2.csv")
+```
+###Use Slope chart to visualize the difference:
+```{r}
+library(ggrepel)
+install.packages("kableExtra")
+library(kableExtra)
+library(dplyr)
+```
+
+```{r}
+ggplot(data = differ2, aes(x = ranking_method, y = ranking, group = NOC)) +
+  geom_line(aes(color = NOC), size = 0.1) +
+  geom_point(aes(color = NOC), size = 1) +
+  geom_text_repel(data = differ2 %>% filter(ranking_method == "unadj_ranking"), 
+                  aes(label = paste(NOC)) , 
+                  hjust = "left", 
+                  fontface = "bold", 
+                  size = 3, 
+                  nudge_x = -.45, 
+                  direction = "y") +
+  geom_text_repel(data = differ2 %>% filter(ranking_method == "pop_ranking"), 
+                  aes(label = paste(NOC)) , 
+                  hjust = "right", 
+                  fontface = "bold", 
+                  size = 3, 
+                  nudge_x = .5, 
+                  direction = "y") +
+   # move the x axis labels up top
+  scale_x_discrete(position = "top") +
+  theme_bw() +
+  theme(legend.position = "bottom" )+
+  # Format title & subtitle
+  theme(plot.title       = element_text(size=14, face = "bold", hjust = 0.5)) +
+  theme(plot.subtitle    = element_text(hjust = 0.5)) +
+  #  Labelling as desired
+  labs(title = "Ranking differ by different methods")
+```
+
+
+Task 3
+Calculate whether the host nation had an advantage
+```{r}
+library(rvest)
+library(stringr)
+library(tidyverse)
+wiki_hosts <- read_html("https://en.wikipedia.org/wiki/List_of_Olympic_Games_host_cities")
+hosts <- html_table(html_nodes(wiki_hosts, "table")[[2]], fill=TRUE)[-1]
+hosts<-hosts %>% filter(Winter != "") %>%
+  select(City, Country, Year) %>%
+  filter(Year !="1940" & Year!="1944" ) 
+# delete the info if year=1940 and year=1944 because Olympic games were cancelled due to WWII.
+
+hosts["Country"][hosts["Country"] == 'Russia[h]'] <- 'Russia'
+unique(hosts$Country)
+```
+
+There are 13 countries that has been hosted for Winter Olympics.
+Combine hosts with merge_data2
+```{r}
+host_adv<-merge(hosts,merge_data2, by="Country")
+```
+Make visualization of the host country advantage:
+```{r}
+host_country <- host_adv %>%
+  filter(!is.na(Medal))%>%
+  select(Country,NOC,Season,Year.y,Event,Medal)%>%
+  filter(Season=="Winter") %>%
+  filter(NOC %in% c("FRA","SUI","USA","GER","NOR","ITA","AUS","JPN","YUG","CAN","RUS","KOR")) %>%
+  unique()%>%
+  group_by(NOC,Year.y)%>%
+  summarise(medal.count = n())%>%
+  arrange(desc(medal.count))%>%
+  ungroup()
+
+
+  ggplot(host_country,aes(x=Year.y, y=medal.count,color=NOC)) + 
+  geom_line(size=0.1)+
+  theme_classic()+
+  theme(legend.position = "bottom" )+
+  labs(color = "NOC")+
+  ggtitle("host country advantage")+
+  xlab("Year")+
+  ylab("Count of medals")+
+  theme(axis.title.x=element_text(vjust=2, size=15,face = "bold"))+
+  theme(axis.title.y=element_text(vjust=2, size=15,face = "bold"))
+```
+For Canada(CAN) that hosted winter olympics games in 1988 and 2010, it had only 5 medals in 1988, similar number of medals as the previous and the next winter olympics games. But there is a host nation advantage in 2010, as CAN won 26 medals, which was the greatest number of medals across thoses years.
+For GER(Germany) that hosted games in 1936, and it had 6 medals in 1936. But it's hard to claim that it had the host nation advantage because though GER gained more medals in 1936 compared to 1932, it won 7 medals in the following next Olympics games in 1952.
+For JPN(Japan), hosted games in 1972 and 1998, there was an obvious host country advantage: it won 3 medals in 1972 and 10 medals in 1998, more medals compared to other times.
+For RUS(Russia) who hosted games in 2014, had a host nation advantage as we can see it won 33 medals in 2014, the most medals compared to other times.
+For USA, who hosted games in 1932, 1960, 1980, and 2002. We can see the host country advantage in the year 1932 and 2002, given there were more medals compared to the previous and the following winter olympic games.
+For FRA(France), who hosted games in 1924, 1968 and 1992, the host nation advantage wasn't clear: it won 3 medals in 1924,9 medals in 1968 and 9 medals in 1992, but the numbers of medals don't differ so much compared to other times.
+For ITA(Italy), hosted games in 1956 and 2006,there were no host nation advantage.
+For NOR(Norway), hosted games in 1952 and 1994, won 16 and 23 medals respectively in these two year. But it's hard to tell there was a  host country advantage since the numbers of medals don't differ so much compared to other times.
+For SUI(Switzerland),hosted games in 1928 and 1948, won 1 and 9 medals respectively, and I can tell it had the host nation advantage.
+
+Task 4
+a. First summarize the most successful Winter Olympics athletes of all time.Note that I define the "most successful athletes" are the athletes who had won the most medals of all Winter Olympics games.
+```{r}
+success_athletes<-merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  filter(Season=="Winter") %>%
+  select(ID,Name,Sex,Age,Height,Weight,Country,NOC,Season,Year,Sport,Event,Medal)%>%
+  unique()%>%
+  group_by(Name,NOC,ID)%>%
+  summarise(medal.count = n())%>%
+  arrange(desc(medal.count))%>%
+  ungroup()
+#add label to Yang Yang, who has the same name as another person.
+success_athletes$Name[which(success_athletes$ID =='132562')] <- 'Yang Yang2' 
+```
+
+```{r}
+top10.athletes<-success_athletes %>% head(10)
+ggplot(data = top10.athletes) +
+  geom_point(mapping=aes(x=NOC, y=medal.count,color=Name))
+  theme_classic()+
+  theme(legend.position = "bottom" )+
+  labs(color = "Name")+
+  ggtitle("Most successful athletes(top 10)")+
+  xlab("NOC")+
+  ylab("Count of medals")+
+  theme(axis.title.x=element_text(vjust=2, size=15,face = "bold"))+
+  theme(axis.title.y=element_text(vjust=2, size=15,face = "bold"))
+
+```
+Here is the top 10 most successful Winter Olympics athletes of all times. NOR(Norway) has top 2 most successful athletes,they are Ole Einar Bjrndalen, won 13 medals in total, and Marit Bjrgen, won 10 medals in total.
+
+b. I choose the height and weight of the top 10 most successful Winter Olympics athletes, and visualize them.
+```{r}
+athletes_info<-merge_data2 %>%
+  filter(!is.na(Medal))%>%
+  filter(Season=="Winter")%>%
+  select(ID,Name,Sex,Height,Weight,NOC)%>%
+  unique()
+
+top10_info<-merge(top10.athletes,athletes_info,by="Name")
+top10_info$Name[which(top10_info$ID =='132562')] <- 'Yang Yang2' 
+```
+
+```{r}
+ggplot(data = top10_info) +
+  geom_point(mapping=aes(x=Height, y=Weight,color=Name))
+  theme_classic()+
+  theme(legend.position = "bottom" )+
+  labs(color = "Name")+
+  ggtitle("Height-Weight of the top 10 most successful athletes")+
+  xlab("Height")+
+  ylab("Weight")+
+  theme(axis.title.x=element_text(vjust=2, size=15,face = "bold"))+
+  theme(axis.title.y=element_text(vjust=2, size=15,face = "bold"))
+```
+Interactivity
+5. Make two plots interactive
+1) An interactive graph that shows the top 5 countries' medals by year.
+```{r}
+library(plotly)
+interact_top5.medal<- top5.year %>%
+  plot_ly(x= ~Year,y= ~medal.count,color= ~NOC) %>%
+  add_lines(alpha=0.2,name= ~NOC)
+
+interact_top5.medal
+```
+
+2) An interactive graph that shows a total medal count (across all Winter Olympics) 
+```{r}
+total_medal<- top10 %>%
+  plot_ly(x= ~NOC,y= ~medal.count,color= ~Medal,type= "bar") %>%
+  layout(yaxis = list(title = "Count of medals", showticklabels = TRUE), 
+         xaxis = list(title = "NOC"),
+         barmode="stack")
+total_medal
+```
+
+Interactively picture is more helpful for a reader because reader can zoom in and zoom out the picture, and can even pan, select and download it. Moreover, reader could clearly understand the information the picture shows as the presenter's cursor moves, reader could see labels for the data(rather than spend time reading the x-axis and y-axis).
+
+6.Prepare a selected data set and add a datatable to the output.Here I use "Total medal count across all winter Olympics" datatable.
+```{r}
+library(DT)
+datatable(top10)
+```
+Well, I suggest provide the information like "total medals count by country across all winter Olympics","over time comparison of top 5 countries that had the most amount of medals" in a data table in the online version of the article because reader might be interested in searching for a country by NOC or sorting for the types of medals or the medal.count.Hence, if you provide such information in a data table, it makes lots of sense and make reader easier and feel excited to explore the information you provided.
